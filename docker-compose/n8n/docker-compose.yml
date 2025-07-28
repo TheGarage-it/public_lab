@@ -1,0 +1,78 @@
+services:
+  postgres:
+    image: postgres:16.2-alpine
+    container_name: n8n_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: ${PGDATA}
+    volumes:
+      - n8n_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  n8n:
+    image: n8nio/n8n:1.91.3
+    container_name: n8n
+    restart: unless-stopped
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+
+      N8N_USER_MANAGEMENT_JWT_SECRET: ${N8N_USER_MANAGEMENT_JWT_SECRET}
+      N8N_USER_MANAGEMENT_DISABLED: false
+
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      N8N_PERSONALIZATION_ENABLED: ${N8N_PERSONALIZATION_ENABLED}
+      N8N_DIAGNOSTICS_ENABLED: ${N8N_DIAGNOSTICS_ENABLED}
+      N8N_TELEMETRY_ENABLED: ${N8N_TELEMETRY_ENABLED}
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE}
+      TZ: ${TZ}
+      
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+
+  n8n-import:
+    image: n8nio/n8n:1.91.3
+    container_name: n8n-import
+    entrypoint: /bin/sh
+    command:
+      - "-c"
+      - >
+        n8n import:credentials --separate --input=/backup/credentials --input-format=json &&
+        n8n import:workflow --separate --input=/backup/workflows --input-format=json
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: ${POSTGRES_DB}
+      DB_POSTGRESDB_USER: ${POSTGRES_USER}
+      DB_POSTGRESDB_PASSWORD: ${POSTGRES_PASSWORD}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      NODE_ENV: production
+    volumes:
+      - ./backup:/backup
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  n8n_postgres_data:
+  n8n_data:

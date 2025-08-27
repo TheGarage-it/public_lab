@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres_nocobase
+    restart: unless-stopped
+    ports:
+      - "15432:5432"
+    environment:
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      TZ: ${TZ}
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+
+  nocobase:
+    container_name: nocobase
+    image: nocobase/nocobase:latest
+    restart: unless-stopped
+    ports:
+      - "13000:13000"
+    environment:
+      - NODE_ENV=production
+      - TZ=${TZ}
+      - DB_DIALECT=${DB_DIALECT}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    depends_on:
+      - postgres
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:13000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+networks:
+  default:
+    name: nocobase_net
+
